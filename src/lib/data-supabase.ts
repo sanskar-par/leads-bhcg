@@ -77,6 +77,59 @@ export const getLeadsByUser = async (userId: string): Promise<Lead[]> => {
   }));
 };
 
+// Normalize LinkedIn URL by removing trailing slashes, query params, and converting to lowercase
+const normalizeLinkedInUrl = (url: string): string => {
+  try {
+    const urlObj = new URL(url);
+    // Remove trailing slash and query parameters/fragments
+    return `${urlObj.origin}${urlObj.pathname}`.replace(/\/$/, '').toLowerCase();
+  } catch {
+    // If URL parsing fails, just remove trailing slash and lowercase
+    return url.replace(/\/$/, '').toLowerCase();
+  }
+};
+
+export const checkDuplicateLead = async (linkedinUrl?: string, email?: string): Promise<Lead | null> => {
+  if (!linkedinUrl && !email) return null;
+
+  // Get all leads to check with normalized LinkedIn URLs
+  const { data: allLeads, error: fetchError } = await supabase
+    .from('leads')
+    .select('*');
+
+  if (fetchError || !allLeads) return null;
+
+  const normalizedInputUrl = linkedinUrl ? normalizeLinkedInUrl(linkedinUrl) : '';
+  const normalizedInputEmail = email ? email.toLowerCase().trim() : '';
+
+  // Find duplicate by checking normalized values
+  const duplicate = allLeads.find(lead => {
+    const normalizedLeadUrl = normalizeLinkedInUrl(lead.linkedin_url);
+    const normalizedLeadEmail = lead.email.toLowerCase().trim();
+    
+    return (normalizedInputUrl && normalizedLeadUrl === normalizedInputUrl) ||
+           (normalizedInputEmail && normalizedLeadEmail === normalizedInputEmail);
+  });
+
+  if (!duplicate) return null;
+
+  return {
+    id: duplicate.id,
+    linkedinUrl: duplicate.linkedin_url,
+    name: duplicate.name,
+    latestCompany: duplicate.latest_company,
+    industry: duplicate.industry,
+    roleType: duplicate.role_type,
+    email: duplicate.email,
+    alternateEmail: duplicate.alternate_email || undefined,
+    phoneNumber: duplicate.phone_number || undefined,
+    isBitsian: duplicate.is_bitsian,
+    remarks: duplicate.remarks || undefined,
+    addedBy: duplicate.added_by,
+    addedAt: new Date(duplicate.added_at),
+  };
+};
+
 export const addLead = async (leadData: Omit<Lead, 'id' | 'addedAt'>): Promise<Lead | null> => {
   const { data, error } = await supabase
     .from('leads')

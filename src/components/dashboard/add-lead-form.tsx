@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from "@/hooks/use-toast";
-import { addLead, industries, roleTypes } from '@/lib/data-supabase';
+import { addLead, checkDuplicateLead, industries, roleTypes } from '@/lib/data-supabase';
 import { useAuth } from '@/context/auth-context';
 
 const formSchema = z.object({
@@ -35,6 +35,8 @@ type AddLeadFormProps = {
 
 export default function AddLeadForm({ onLeadAdded }: AddLeadFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -54,16 +56,52 @@ export default function AddLeadForm({ onLeadAdded }: AddLeadFormProps) {
     },
   });
 
+  // Check for duplicates when LinkedIn URL or email changes
+  const checkForDuplicates = async (linkedinUrl: string, email: string) => {
+    setDuplicateError(null);
+    
+    if (!linkedinUrl && !email) {
+      return;
+    }
+
+    setIsCheckingDuplicate(true);
+    try {
+      const duplicate = await checkDuplicateLead(linkedinUrl || undefined, email || undefined);
+      if (duplicate) {
+        const duplicateField = linkedinUrl && duplicate.linkedinUrl === linkedinUrl ? 'LinkedIn URL' : 'Email';
+        setDuplicateError(`This ${duplicateField} already exists in the database (Lead: ${duplicate.name} at ${duplicate.latestCompany})`);
+      }
+    } catch (error) {
+      console.error('Error checking for duplicates:', error);
+    } finally {
+      setIsCheckingDuplicate(false);
+    }
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
         toast({ variant: "destructive", title: "Authentication error", description: "You must be logged in to add a lead." });
         return;
     }
+
+    // Final duplicate check before submission
+    const duplicate = await checkDuplicateLead(values.linkedinUrl, values.email);
+    if (duplicate) {
+      const duplicateField = duplicate.linkedinUrl === values.linkedinUrl ? 'LinkedIn URL' : 'Email';
+      toast({ 
+        variant: "destructive", 
+        title: "Duplicate Lead", 
+        description: `This ${duplicateField} already exists in the database (${duplicate.name} at ${duplicate.latestCompany})` 
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
         await addLead({ ...values, addedBy: user.id });
         toast({ title: "Lead Added", description: `${values.name} has been added to the database.` });
         form.reset();
+        setDuplicateError(null);
         onLeadAdded();
     } catch (error) {
         toast({ variant: "destructive", title: "Error", description: "Failed to add lead." });
@@ -79,10 +117,28 @@ export default function AddLeadForm({ onLeadAdded }: AddLeadFormProps) {
         <CardDescription>Enter lead details manually.</CardDescription>
       </CardHeader>
       <CardContent>
+            {duplicateError && (
+              <div className="mb-4 p-3 rounded-md bg-destructive/15 text-destructive text-sm border border-destructive/30">
+                {duplicateError}
+              </div>
+            )}
             <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField control={form.control} name="linkedinUrl" render={({ field }) => (
-                    <FormItem><FormLabel>LinkedIn URL</FormLabel><FormControl><Input placeholder="e.g. https://www.linkedin.com/in/johndoe" {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem>
+                      <FormLabel>LinkedIn URL</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="e.g. https://www.linkedin.com/in/johndoe" 
+                          {...field}
+                          onBlur={() => {
+                            field.onBlur();
+                            checkForDuplicates(field.value, form.getValues('email'));
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                 )} />
                 <FormField control={form.control} name="name" render={({ field }) => (
                     <FormItem><FormLabel>Name</FormLabel><FormControl><Input placeholder="e.g. John Doe" {...field} /></FormControl><FormMessage /></FormItem>
@@ -107,7 +163,21 @@ export default function AddLeadForm({ onLeadAdded }: AddLeadFormProps) {
                     </FormItem>
                 )} />
                 <FormField control={form.control} name="email" render={({ field }) => (
-                    <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" placeholder="e.g. john.doe@example.com" {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="email" 
+                          placeholder="e.g. john.doe@example.com" 
+                          {...field}
+                          onBlur={() => {
+                            field.onBlur();
+                            checkForDuplicates(form.getValues('linkedinUrl'), field.value);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                 )} />
                 <FormField control={form.control} name="alternateEmail" render={({ field }) => (
                     <FormItem><FormLabel>Alternate Email (Optional)</FormLabel><FormControl><Input type="email" placeholder="e.g. john.d@personal.com" {...field} /></FormControl><FormMessage /></FormItem>
@@ -125,9 +195,9 @@ export default function AddLeadForm({ onLeadAdded }: AddLeadFormProps) {
                     <FormItem><FormLabel>Remarks (Optional)</FormLabel><FormControl><Input placeholder="Additional notes..." {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <CardFooter className="p-0 pt-4">
-                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    <Button type="submit" className="w-full" disabled={isSubmitting || isCheckingDuplicate || !!duplicateError}>
                         {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                        Add Lead
+                        {isCheckingDuplicate ? 'Checking...' : 'Add Lead'}
                     </Button>
                 </CardFooter>
             </form>
