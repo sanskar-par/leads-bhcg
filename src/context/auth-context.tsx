@@ -3,13 +3,15 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from '@/lib/types';
-import { verifyUser, findUserById } from '@/lib/data-supabase';
+import { verifyUser, findUserById, createOrUpdateUserFromGoogle } from '@/lib/data-supabase';
+import { supabase } from '@/lib/supabase';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (userId: string, pass: string) => Promise<boolean>;
-  logout: () => void;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,6 +24,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const checkUser = async () => {
       try {
+        // Check for Supabase session first
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          // User logged in with Google
+          const googleUser = await createOrUpdateUserFromGoogle(session.user);
+          if (googleUser) {
+            setUser(googleUser);
+            return;
+          }
+        }
+        
+        // Fallback to manual login check
         const storedUserId = sessionStorage.getItem('userId');
         if (storedUserId) {
           const foundUser = await findUserById(storedUserId);
@@ -38,6 +53,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
     checkUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const googleUser = await createOrUpdateUserFromGoogle(session.user);
+        if (googleUser) {
+          setUser(googleUser);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        sessionStorage.removeItem('userId');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (userId: string, pass: string): Promise<boolean> => {
@@ -53,14 +85,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return false;
   };
 
-  const logout = () => {
+  const loginWithGoogle = async (): Promise<void> => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+    
+    if (error) {
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    // Sign out from Supabase
+    await supabase.auth.signOut();
     setUser(null);
     sessionStorage.removeItem('userId');
     router.push('/login');
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

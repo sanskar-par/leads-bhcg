@@ -1,5 +1,6 @@
 import { Lead, User, LeaderboardEntry } from './types';
 import { supabase } from './supabase';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 // --- User Functions ---
 export const findUserById = async (id: string): Promise<User | undefined> => {
@@ -23,6 +24,43 @@ export const verifyUser = async (id: string, pass: string): Promise<User | undef
   
   if (error || !data) return undefined;
   return { id: data.id, name: data.name, avatarUrl: '' };
+};
+
+// Create or update user from Google OAuth
+export const createOrUpdateUserFromGoogle = async (supabaseUser: SupabaseUser): Promise<User | undefined> => {
+  const userId = supabaseUser.email?.split('@')[0] || supabaseUser.id.substring(0, 8);
+  const userName = supabaseUser.user_metadata?.full_name || supabaseUser.email || 'Google User';
+  const avatarUrl = supabaseUser.user_metadata?.avatar_url || '';
+
+  // Check if user exists
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('id, name')
+    .eq('id', userId)
+    .single();
+
+  if (existingUser) {
+    // User exists, return it
+    return { id: existingUser.id, name: existingUser.name, avatarUrl };
+  }
+
+  // Create new user (without password since they use Google OAuth)
+  const { data: newUser, error } = await supabase
+    .from('users')
+    .insert({
+      id: userId,
+      name: userName,
+      password: null, // NULL password for Google users
+    })
+    .select('id, name')
+    .single();
+
+  if (error || !newUser) {
+    console.error('Error creating user from Google:', error);
+    return undefined;
+  }
+
+  return { id: newUser.id, name: newUser.name, avatarUrl };
 };
 
 // --- Lead Functions ---

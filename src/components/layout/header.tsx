@@ -51,7 +51,12 @@ export default function Header() {
                             Welcome, {user.name}
                         </span>
                     )}
-                    <Button variant="outline" size="sm" onClick={logout} className="hidden md:flex">
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => logout()} 
+                        className="hidden md:flex"
+                    >
                         <LogOut className="mr-2 h-4 w-4" />
                         Sign Out
                     </Button>
