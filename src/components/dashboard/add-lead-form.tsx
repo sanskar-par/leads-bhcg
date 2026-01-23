@@ -122,6 +122,12 @@ export default function AddLeadForm({ onLeadAdded }: AddLeadFormProps) {
                 {duplicateError}
               </div>
             )}
+            {isCheckingDuplicate && (
+              <div className="mb-4 p-3 rounded-md bg-blue-50 text-blue-700 text-sm border border-blue-200 flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking for duplicates...
+              </div>
+            )}
             <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField control={form.control} name="linkedinUrl" render={({ field }) => (
@@ -196,8 +202,17 @@ export default function AddLeadForm({ onLeadAdded }: AddLeadFormProps) {
                 )} />
                 <CardFooter className="p-0 pt-4">
                     <Button type="submit" className="w-full" disabled={isSubmitting || isCheckingDuplicate || !!duplicateError}>
-                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                        {isCheckingDuplicate ? 'Checking...' : 'Add Lead'}
+                        {isSubmitting ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Adding Lead...
+                            </>
+                        ) : (
+                            <>
+                                <UserPlus className="mr-2 h-4 w-4" />
+                                Add Lead
+                            </>
+                        )}
                     </Button>
                 </CardFooter>
             </form>
