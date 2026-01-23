@@ -115,9 +115,14 @@ export default function LeadsTable() {
         <Card>
             <CardHeader>
                 <div className="flex items-center justify-between">
-                    <div>
-                        <CardTitle className="font-headline text-2xl">Central Database</CardTitle>
-                        <CardDescription>Browse, filter, and export all leads in the database.</CardDescription>
+                    <div className="flex items-center gap-3">
+                        <div>
+                            <CardTitle className="font-headline text-2xl">Central Database</CardTitle>
+                            <CardDescription>Browse, filter, and export all leads in the database.</CardDescription>
+                        </div>
+                        <Badge variant="secondary" className="text-base px-3 py-1">
+                            {leads.length} {leads.length === 1 ? 'Lead' : 'Leads'}
+                        </Badge>
                     </div>
                     <Button onClick={exportToExcel} variant="outline" className="gap-2">
                         <Download className="h-4 w-4" />
