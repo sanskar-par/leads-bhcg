@@ -14,6 +14,22 @@ export const findUserById = async (id: string): Promise<User | undefined> => {
   return { id: data.id, name: data.name, avatarUrl: '' };
 };
 
+// Get all users at once (optimized for bulk fetching)
+export const getAllUsers = async (): Promise<{ [id: string]: User }> => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, name');
+  
+  if (error || !data) return {};
+  
+  const userMap: { [id: string]: User } = {};
+  data.forEach(user => {
+    userMap[user.id] = { id: user.id, name: user.name, avatarUrl: '' };
+  });
+  
+  return userMap;
+};
+
 export const verifyUser = async (id: string, pass: string): Promise<User | undefined> => {
   const { data, error } = await supabase
     .from('users')
@@ -130,42 +146,74 @@ const normalizeLinkedInUrl = (url: string): string => {
 export const checkDuplicateLead = async (linkedinUrl?: string, email?: string): Promise<Lead | null> => {
   if (!linkedinUrl && !email) return null;
 
-  // Get all leads to check with normalized LinkedIn URLs
-  const { data: allLeads, error: fetchError } = await supabase
-    .from('leads')
-    .select('*');
-
-  if (fetchError || !allLeads) return null;
-
+  // Normalize inputs
   const normalizedInputUrl = linkedinUrl ? normalizeLinkedInUrl(linkedinUrl) : '';
   const normalizedInputEmail = email ? email.toLowerCase().trim() : '';
 
-  // Find duplicate by checking normalized values
-  const duplicate = allLeads.find(lead => {
-    const normalizedLeadUrl = normalizeLinkedInUrl(lead.linkedin_url);
-    const normalizedLeadEmail = lead.email.toLowerCase().trim();
+  // Use database query instead of fetching all leads
+  // Check LinkedIn URL first
+  if (normalizedInputUrl) {
+    const { data: urlMatches } = await supabase
+      .from('leads')
+      .select('*')
+      .ilike('linkedin_url', `%${normalizedInputUrl.split('://')[1]}%`)
+      .limit(10); // Get max 10 potential matches
     
-    return (normalizedInputUrl && normalizedLeadUrl === normalizedInputUrl) ||
-           (normalizedInputEmail && normalizedLeadEmail === normalizedInputEmail);
-  });
+    if (urlMatches && urlMatches.length > 0) {
+      // Check exact match after normalization
+      const exactMatch = urlMatches.find(lead => 
+        normalizeLinkedInUrl(lead.linkedin_url) === normalizedInputUrl
+      );
+      
+      if (exactMatch) {
+        return {
+          id: exactMatch.id,
+          linkedinUrl: exactMatch.linkedin_url,
+          name: exactMatch.name,
+          latestCompany: exactMatch.latest_company,
+          industry: exactMatch.industry,
+          roleType: exactMatch.role_type,
+          email: exactMatch.email,
+          alternateEmail: exactMatch.alternate_email || undefined,
+          phoneNumber: exactMatch.phone_number || undefined,
+          isBitsian: exactMatch.is_bitsian,
+          remarks: exactMatch.remarks || undefined,
+          addedBy: exactMatch.added_by,
+          addedAt: new Date(exactMatch.added_at),
+        };
+      }
+    }
+  }
 
-  if (!duplicate) return null;
+  // Check email
+  if (normalizedInputEmail) {
+    const { data: emailMatch } = await supabase
+      .from('leads')
+      .select('*')
+      .ilike('email', normalizedInputEmail)
+      .limit(1)
+      .single();
+    
+    if (emailMatch) {
+      return {
+        id: emailMatch.id,
+        linkedinUrl: emailMatch.linkedin_url,
+        name: emailMatch.name,
+        latestCompany: emailMatch.latest_company,
+        industry: emailMatch.industry,
+        roleType: emailMatch.role_type,
+        email: emailMatch.email,
+        alternateEmail: emailMatch.alternate_email || undefined,
+        phoneNumber: emailMatch.phone_number || undefined,
+        isBitsian: emailMatch.is_bitsian,
+        remarks: emailMatch.remarks || undefined,
+        addedBy: emailMatch.added_by,
+        addedAt: new Date(emailMatch.added_at),
+      };
+    }
+  }
 
-  return {
-    id: duplicate.id,
-    linkedinUrl: duplicate.linkedin_url,
-    name: duplicate.name,
-    latestCompany: duplicate.latest_company,
-    industry: duplicate.industry,
-    roleType: duplicate.role_type,
-    email: duplicate.email,
-    alternateEmail: duplicate.alternate_email || undefined,
-    phoneNumber: duplicate.phone_number || undefined,
-    isBitsian: duplicate.is_bitsian,
-    remarks: duplicate.remarks || undefined,
-    addedBy: duplicate.added_by,
-    addedAt: new Date(duplicate.added_at),
-  };
+  return null;
 };
 
 export const addLead = async (leadData: Omit<Lead, 'id' | 'addedAt'>): Promise<Lead | null> => {

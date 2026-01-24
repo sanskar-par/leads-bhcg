@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowUpDown, Download, ExternalLink } from "lucide-react";
-import { getLeads, findUserById } from '@/lib/data-supabase';
+import { getLeads, getAllUsers } from '@/lib/data-supabase';
 import type { Lead, User } from '@/lib/types';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
@@ -25,12 +25,8 @@ export default function LeadsTable() {
             const allLeads = await getLeads();
             setLeads(allLeads);
             
-            const userIds = [...new Set(allLeads.map(lead => lead.addedBy))];
-            const userMap: {[id: string]: User} = {};
-            await Promise.all(userIds.map(async (id) => {
-                const user = await findUserById(id);
-                if (user) userMap[id] = user;
-            }));
+            // Fetch all users at once instead of one by one
+            const userMap = await getAllUsers();
             setUsers(userMap);
         };
         fetchLeadsAndUsers();
