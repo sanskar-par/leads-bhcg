@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -37,6 +37,7 @@ export default function AddLeadForm({ onLeadAdded }: AddLeadFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const [checkTimeout, setCheckTimeout] = useState<NodeJS.Timeout | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -56,27 +57,45 @@ export default function AddLeadForm({ onLeadAdded }: AddLeadFormProps) {
     },
   });
 
-  // Check for duplicates when LinkedIn URL or email changes
-  const checkForDuplicates = async (linkedinUrl: string, email: string) => {
+  // Check for duplicates when LinkedIn URL or email changes (with debounce)
+  const checkForDuplicates = useCallback(async (linkedinUrl: string, email: string) => {
+    // Clear any pending timeout
+    if (checkTimeout) {
+      clearTimeout(checkTimeout);
+    }
+
     setDuplicateError(null);
     
-    if (!linkedinUrl && !email) {
+    // Don't check if both fields are empty or don't have valid values
+    const hasValidLinkedIn = linkedinUrl && linkedinUrl.trim().length > 0 && linkedinUrl.startsWith('http');
+    const hasValidEmail = email && email.trim().length > 0 && email.includes('@');
+    
+    if (!hasValidLinkedIn && !hasValidEmail) {
+      setIsCheckingDuplicate(false);
       return;
     }
 
-    setIsCheckingDuplicate(true);
-    try {
-      const duplicate = await checkDuplicateLead(linkedinUrl || undefined, email || undefined);
-      if (duplicate) {
-        const duplicateField = linkedinUrl && duplicate.linkedinUrl === linkedinUrl ? 'LinkedIn URL' : 'Email';
-        setDuplicateError(`This ${duplicateField} already exists in the database (Lead: ${duplicate.name} at ${duplicate.latestCompany})`);
+    // Debounce the check - wait 500ms after user stops typing
+    const timeout = setTimeout(async () => {
+      setIsCheckingDuplicate(true);
+      try {
+        const duplicate = await checkDuplicateLead(
+          hasValidLinkedIn ? linkedinUrl : undefined, 
+          hasValidEmail ? email : undefined
+        );
+        if (duplicate) {
+          const duplicateField = hasValidLinkedIn && duplicate.linkedinUrl === linkedinUrl ? 'LinkedIn URL' : 'Email';
+          setDuplicateError(`This ${duplicateField} already exists in the database (Lead: ${duplicate.name} at ${duplicate.latestCompany})`);
+        }
+      } catch (error) {
+        console.error('Error checking for duplicates:', error);
+      } finally {
+        setIsCheckingDuplicate(false);
       }
-    } catch (error) {
-      console.error('Error checking for duplicates:', error);
-    } finally {
-      setIsCheckingDuplicate(false);
-    }
-  };
+    }, 500);
+
+    setCheckTimeout(timeout);
+  }, [checkTimeout]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
