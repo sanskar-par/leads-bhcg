@@ -9,7 +9,7 @@ bhcg@hyderabad.bits-pilani.ac.in
 
 **App Password:** (from Python script)
 ```
-xncwzpisxnuzpbnt
+
 ```
 
 ## SMTP Settings
@@ -37,7 +37,7 @@ Display Name: BITS Hyderabad Consulting Group
 3. **Configure Email:**
    - Go to Admin Dashboard → Settings Tab
    - Enter email: `bhcg@hyderabad.bits-pilani.ac.in`
-   - Enter password: `xncwzpisxnuzpbnt`
+   - Enter password: ``
 
 4. **Start Sending:**
    - Filter leads (default: Not Mailed)
