@@ -63,7 +63,7 @@ export default function AddLeadForm({ onLeadAdded }: AddLeadFormProps) {
     setIsSubmitting(true);
     try {
         await addLead({ ...values, addedBy: user.id });
-        toast({ title: "Lead Added", description: `${values.name} has been added to the database." });
+        toast({ title: "Lead Added", description: `${values.name} has been added to the database.` });
         form.reset();
         onLeadAdded();
     } catch (error) {
