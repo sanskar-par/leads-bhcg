@@ -22,52 +22,89 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
 
   useEffect(() => {
+    let mounted = true;
+    
     const checkUser = async () => {
       try {
-        // Check for Supabase session first
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Checking user session...');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (!mounted) return;
+        
+        if (sessionError) {
+          console.error("Session error:", sessionError);
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Session:', session ? 'Found' : 'Not found');
         
         if (session?.user) {
-          // User logged in with Google
+          console.log('Creating/updating user from session:', session.user.email);
           const googleUser = await createOrUpdateUserFromGoogle(session.user);
-          if (googleUser) {
-            setUser(googleUser);
+          if (mounted) {
+            if (googleUser) {
+              console.log('User loaded successfully:', googleUser.id);
+              setUser(googleUser);
+            } else {
+              console.error("Failed to create/update user from Google session");
+            }
+            setLoading(false);
             return;
           }
         }
         
         // Fallback to manual login check
         const storedUserId = sessionStorage.getItem('userId');
-        if (storedUserId) {
+        if (storedUserId && mounted) {
+          console.log('Checking manual login for:', storedUserId);
           const foundUser = await findUserById(storedUserId);
-          if (foundUser) {
-            setUser(foundUser);
-          } else {
-             sessionStorage.removeItem('userId');
+          if (mounted) {
+            if (foundUser) {
+              setUser(foundUser);
+            } else {
+              sessionStorage.removeItem('userId');
+            }
           }
         }
       } catch (error) {
         console.error("Failed to check user session", error);
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
+    
     checkUser();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+      
+      console.log('Auth state changed:', event, session?.user?.email || 'no user');
+      
       if (event === 'SIGNED_IN' && session?.user) {
         const googleUser = await createOrUpdateUserFromGoogle(session.user);
-        if (googleUser) {
+        if (mounted && googleUser) {
           setUser(googleUser);
         }
       } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        sessionStorage.removeItem('userId');
+        if (mounted) {
+          setUser(null);
+          sessionStorage.removeItem('userId');
+        }
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        console.log('Token refreshed, updating user');
+        const googleUser = await createOrUpdateUserFromGoogle(session.user);
+        if (mounted && googleUser) {
+          setUser(googleUser);
+        }
       }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -99,11 +136,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
-    // Sign out from Supabase
-    await supabase.auth.signOut();
-    setUser(null);
-    sessionStorage.removeItem('userId');
-    router.push('/login');
+    try {
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout error:', error);
+      }
+    } catch (error) {
+      console.error('Logout exception:', error);
+    } finally {
+      setUser(null);
+      sessionStorage.removeItem('userId');
+      router.push('/login');
+    }
   };
 
   return (

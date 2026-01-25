@@ -10,13 +10,34 @@ import { cn } from '@/lib/utils';
 
 export default function LeaderboardTable() {
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-    
+    const [loading, setLoading] = useState(true);
+
     useEffect(() => {
+        let mounted = true;
+        
         const fetchLeaderboard = async () => {
-            const data = await getLeaderboard();
-            setLeaderboard(data);
+            try {
+                setLoading(true);
+                console.log('Fetching leaderboard data...');
+                const data = await getLeaderboard();
+                if (mounted) {
+                    console.log('Leaderboard data fetched:', data.length, 'entries');
+                    setLeaderboard(data);
+                }
+            } catch (error) {
+                console.error('Error fetching leaderboard:', error);
+            } finally {
+                if (mounted) {
+                    setLoading(false);
+                }
+            }
         };
+        
         fetchLeaderboard();
+        
+        return () => {
+            mounted = false;
+        };
     }, []);
 
     const getRankColor = (rank: number) => {
@@ -43,7 +64,13 @@ export default function LeaderboardTable() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {leaderboard.length > 0 ? (
+                            {loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="h-24 text-center">
+                                        Loading leaderboard...
+                                    </TableCell>
+                                </TableRow>
+                            ) : leaderboard.length > 0 ? (
                                 leaderboard.map((entry, index) => (
                                 <TableRow key={entry.user.id} className={cn(index === 0 && "bg-accent")}>
                                     <TableCell className="font-bold text-lg">

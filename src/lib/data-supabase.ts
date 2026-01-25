@@ -1,10 +1,13 @@
 import { Lead, User, LeaderboardEntry } from './types';
-import { supabase } from './supabase';
+import { supabase, createDataClient } from './supabase';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+
+// Create a dedicated client for data operations to avoid auth conflicts
+const dataClient = createDataClient();
 
 // --- User Functions ---
 export const findUserById = async (id: string): Promise<User | undefined> => {
-  const { data, error } = await supabase
+  const { data, error } = await dataClient
     .from('users')
     .select('id, name')
     .eq('id', id)
@@ -16,7 +19,7 @@ export const findUserById = async (id: string): Promise<User | undefined> => {
 
 // Get all users at once (optimized for bulk fetching)
 export const getAllUsers = async (): Promise<{ [id: string]: User }> => {
-  const { data, error } = await supabase
+  const { data, error } = await dataClient
     .from('users')
     .select('id, name');
   
@@ -31,7 +34,7 @@ export const getAllUsers = async (): Promise<{ [id: string]: User }> => {
 };
 
 export const verifyUser = async (id: string, pass: string): Promise<User | undefined> => {
-  const { data, error } = await supabase
+  const { data, error } = await dataClient
     .from('users')
     .select('id, name, password')
     .eq('id', id)
@@ -48,40 +51,48 @@ export const createOrUpdateUserFromGoogle = async (supabaseUser: SupabaseUser): 
   const userName = supabaseUser.user_metadata?.full_name || supabaseUser.email || 'Google User';
   const avatarUrl = supabaseUser.user_metadata?.avatar_url || '';
 
-  // Check if user exists
-  const { data: existingUser } = await supabase
-    .from('users')
-    .select('id, name')
-    .eq('id', userId)
-    .single();
+  console.log('Creating/updating Google user:', { userId, userName, email: supabaseUser.email });
 
-  if (existingUser) {
-    // User exists, return it
-    return { id: existingUser.id, name: existingUser.name, avatarUrl };
-  }
-
-  // Create new user (without password since they use Google OAuth)
-  const { data: newUser, error } = await supabase
+  // Use upsert to create or update user atomically
+  const { data: user, error } = await dataClient
     .from('users')
-    .insert({
+    .upsert({
       id: userId,
       name: userName,
       password: null, // NULL password for Google users
+    }, {
+      onConflict: 'id',
+      ignoreDuplicates: false, // Update if exists
     })
     .select('id, name')
     .single();
 
-  if (error || !newUser) {
-    console.error('Error creating user from Google:', error);
+  if (error) {
+    console.error('Error creating/updating user from Google:', {
+      error,
+      errorMessage: error?.message,
+      errorDetails: error?.details,
+      errorHint: error?.hint,
+      errorCode: error?.code,
+      userId,
+      userName,
+      email: supabaseUser.email,
+    });
     return undefined;
   }
 
-  return { id: newUser.id, name: newUser.name, avatarUrl };
+  if (!user) {
+    console.error('No user returned from upsert operation');
+    return undefined;
+  }
+
+  console.log('Successfully created/updated Google user:', user);
+  return { id: user.id, name: user.name, avatarUrl, email: supabaseUser.email };
 };
 
 // --- Lead Functions ---
 export const getLeads = async (): Promise<Lead[]> => {
-  const { data, error } = await supabase
+  const { data, error } = await dataClient
     .from('leads')
     .select('*')
     .order('added_at', { ascending: false });
@@ -102,11 +113,13 @@ export const getLeads = async (): Promise<Lead[]> => {
     remarks: lead.remarks || undefined,
     addedBy: lead.added_by,
     addedAt: new Date(lead.added_at),
+    status: lead.status as 'not_mailed' | 'mailed' | 'failed' | undefined,
+    statusUpdatedAt: lead.status_updated_at ? new Date(lead.status_updated_at) : undefined,
   }));
 };
 
 export const getLeadsByUser = async (userId: string): Promise<Lead[]> => {
-  const { data, error } = await supabase
+  const { data, error } = await dataClient
     .from('leads')
     .select('*')
     .eq('added_by', userId)
@@ -128,11 +141,15 @@ export const getLeadsByUser = async (userId: string): Promise<Lead[]> => {
     remarks: lead.remarks || undefined,
     addedBy: lead.added_by,
     addedAt: new Date(lead.added_at),
+    status: lead.status as 'not_mailed' | 'mailed' | 'failed' | undefined,
+    statusUpdatedAt: lead.status_updated_at ? new Date(lead.status_updated_at) : undefined,
   }));
 };
 
 export const addLead = async (leadData: Omit<Lead, 'id' | 'addedAt'>): Promise<Lead | null> => {
-  const { data, error } = await supabase
+  console.log('Adding lead:', { addedBy: leadData.addedBy, name: leadData.name });
+  
+  const { data, error } = await dataClient
     .from('leads')
     .insert({
       linkedin_url: leadData.linkedinUrl,
@@ -151,7 +168,14 @@ export const addLead = async (leadData: Omit<Lead, 'id' | 'addedAt'>): Promise<L
     .single();
   
   if (error || !data) {
-    console.error('Error adding lead:', error);
+    console.error('Error adding lead:', {
+      error,
+      errorMessage: error?.message,
+      errorDetails: error?.details,
+      errorHint: error?.hint,
+      errorCode: error?.code,
+      leadData: { name: leadData.name, addedBy: leadData.addedBy }
+    });
     return null;
   }
   
@@ -175,14 +199,14 @@ export const addLead = async (leadData: Omit<Lead, 'id' | 'addedAt'>): Promise<L
 // --- Leaderboard Function ---
 export const getLeaderboard = async (): Promise<LeaderboardEntry[]> => {
   // Get all users
-  const { data: users, error: usersError } = await supabase
+  const { data: users, error: usersError } = await dataClient
     .from('users')
     .select('id, name');
   
   if (usersError || !users) return [];
   
   // Get lead counts per user
-  const { data: leadCounts, error: countsError } = await supabase
+  const { data: leadCounts, error: countsError } = await dataClient
     .from('leads')
     .select('added_by');
   

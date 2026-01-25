@@ -62,12 +62,28 @@ export default function AddLeadForm({ onLeadAdded }: AddLeadFormProps) {
 
     setIsSubmitting(true);
     try {
-        await addLead({ ...values, addedBy: user.id });
+        console.log('Submitting lead with user:', user.id);
+        const result = await addLead({ ...values, addedBy: user.id });
+        
+        if (!result) {
+            toast({ 
+                variant: "destructive", 
+                title: "Error", 
+                description: "Failed to add lead. Check console for details." 
+            });
+            return;
+        }
+        
         toast({ title: "Lead Added", description: `${values.name} has been added to the database.` });
         form.reset();
         onLeadAdded();
     } catch (error) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to add lead." });
+        console.error('Exception when adding lead:', error);
+        toast({ 
+            variant: "destructive", 
+            title: "Error", 
+            description: error instanceof Error ? error.message : "Failed to add lead." 
+        });
     } finally {
         setIsSubmitting(false);
     }

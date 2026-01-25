@@ -19,17 +19,41 @@ export default function LeadsTable() {
     const [users, setUsers] = useState<{[id: string]: User}>({});
     const [filter, setFilter] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'addedAt', direction: 'descending' });
-    
+    const [loading, setLoading] = useState(true);
+
     useEffect(() => {
+        let mounted = true;
+        
         const fetchLeadsAndUsers = async () => {
-            const allLeads = await getLeads();
-            setLeads(allLeads);
-            
-            // Fetch all users at once instead of one by one
-            const userMap = await getAllUsers();
-            setUsers(userMap);
+            try {
+                setLoading(true);
+                console.log('Fetching leads and users...');
+                
+                const [allLeads, userMap] = await Promise.all([
+                    getLeads(),
+                    getAllUsers()
+                ]);
+                
+                if (mounted) {
+                    console.log('Leads fetched:', allLeads.length, 'leads');
+                    console.log('Users fetched:', Object.keys(userMap).length, 'users');
+                    setLeads(allLeads);
+                    setUsers(userMap);
+                }
+            } catch (error) {
+                console.error('Error fetching leads and users:', error);
+            } finally {
+                if (mounted) {
+                    setLoading(false);
+                }
+            }
         };
+        
         fetchLeadsAndUsers();
+        
+        return () => {
+            mounted = false;
+        };
     }, []);
 
     const sortedLeads = useMemo(() => {
@@ -172,7 +196,13 @@ export default function LeadsTable() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredLeads.length > 0 ? (
+                            {loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={12} className="h-24 text-center">
+                                        Loading leads database...
+                                    </TableCell>
+                                </TableRow>
+                            ) : filteredLeads.length > 0 ? (
                                 filteredLeads.map((lead) => (
                                 <TableRow key={lead.id}>
                                     <TableCell className="font-medium">{lead.name}</TableCell>

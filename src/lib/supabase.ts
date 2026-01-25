@@ -1,9 +1,36 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables!');
+}
+
+// Create a browser-based client for auth operations
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storageKey: 'bhcg-leads-auth',
+    debug: false,
+  },
+});
+
+// Create a separate client for data operations that bypasses auth state
+// This prevents auth conflicts between multiple browser sessions
+export const createDataClient = (): SupabaseClient => {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false, // Don't persist sessions for data operations
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+};
 
 // Database types
 export type Database = {
@@ -44,6 +71,8 @@ export type Database = {
           remarks: string | null;
           added_by: string;
           added_at: string;
+          status: string | null;
+          status_updated_at: string | null;
         };
         Insert: {
           id?: string;
@@ -59,6 +88,8 @@ export type Database = {
           remarks?: string | null;
           added_by: string;
           added_at?: string;
+          status?: string | null;
+          status_updated_at?: string | null;
         };
         Update: {
           id?: string;
@@ -74,8 +105,18 @@ export type Database = {
           remarks?: string | null;
           added_by?: string;
           added_at?: string;
+          status?: string | null;
+          status_updated_at?: string | null;
+        };
+          email?: string;
+          alternate_email?: string | null;
+          phone_number?: string | null;
+          is_bitsian?: boolean;
+          remarks?: string | null;
+          added_by?: string;
+          added_at?: string;
         };
       };
     };
   };
-};
+

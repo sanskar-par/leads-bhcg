@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Database, Trophy, LogOut, Briefcase, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Shield } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/context/auth-context";
 import { cn } from "@/lib/utils";
@@ -13,12 +14,19 @@ const navItems = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/database', label: 'Database', icon: Database },
     { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+    // Admin link will be conditionally added
 ];
 
 export default function Header() {
     const { user, logout } = useAuth();
     const pathname = usePathname();
     const [open, setOpen] = useState(false);
+
+    const items = [...navItems];
+    // Show admin link only for the exact authorized admin email
+    if (user?.email && user.email === 'bhcg@hyderabad.bits-pilani.ac.in') {
+        items.push({ href: '/admin', label: 'Admin', icon: Shield });
+    }
 
     return (
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -30,7 +38,7 @@ export default function Header() {
                 
                 {/* Desktop Navigation */}
                 <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
-                    {navItems.map((item) => (
+                    {items.map((item) => (
                         <Link
                             key={item.href}
                             href={item.href}
@@ -84,7 +92,7 @@ export default function Header() {
                                     </div>
                                 )}
                                 <nav className="flex flex-col gap-3">
-                                    {navItems.map((item) => (
+                                    {items.map((item) => (
                                         <Link
                                             key={item.href}
                                             href={item.href}
