@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
@@ -10,79 +10,39 @@ export async function GET(request: NextRequest) {
   if (code) {
     const cookieStore = await cookies();
     
-    // Create a Supabase client with cookie handlers
-    const supabase = createClient(
+    const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
-        auth: {
-          flowType: 'pkce',
-        },
         cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
+          getAll() {
+            return cookieStore.getAll();
           },
-          set(name: string, value: string, options: any) {
+          setAll(cookiesToSet) {
             try {
-              cookieStore.set({
-                name,
-                value,
-                ...options,
-                sameSite: 'lax',
-                secure: process.env.NODE_ENV === 'production',
-              });
-            } catch (error) {
-              // Handle cookie setting errors
-            }
-          },
-          remove(name: string, options: any) {
-            try {
-              cookieStore.set({
-                name,
-                value: '',
-                ...options,
-                maxAge: 0,
-              });
-            } catch (error) {
-              // Handle cookie removal errors
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              );
+            } catch {
+              // The `setAll` method was called from a Server Component.
+              // This can be ignored if you have middleware refreshing
+              // user sessions.
             }
           },
         },
       }
     );
 
-    try {
-      // Exchange the code for a session
-      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-      
-      if (error) {
-        console.error('Error exchanging code for session:', error);
-        return NextResponse.redirect(`${origin}/login?error=auth_failed`);
-      }
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
 
-      if (data.session) {
-        // Create response with redirect
-        const response = NextResponse.redirect(`${origin}/`);
-        
-        // Set auth cookies manually to ensure they persist
-        response.cookies.set('bhcg-leads-auth-token', data.session.access_token, {
-          httpOnly: false,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 60 * 60 * 24 * 7, // 7 days
-          path: '/',
-        });
-        
-        return response;
-      }
-      
-      return NextResponse.redirect(`${origin}/`);
-    } catch (error) {
-      console.error('Callback error:', error);
-      return NextResponse.redirect(`${origin}/login?error=callback_failed`);
+    if (error) {
+      console.error('OAuth callback error:', error);
+      return NextResponse.redirect(`${origin}/login?error=auth_failed`);
     }
+
+    // URL to redirect to after sign in process completes
+    return NextResponse.redirect(`${origin}/`);
   }
 
-  // No code provided - redirect to login
   return NextResponse.redirect(`${origin}/login`);
 }
