@@ -137,14 +137,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     try {
+      console.log('Logging out...');
       // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Logout error:', error);
       }
+      
+      // Clear all auth-related storage
+      sessionStorage.removeItem('userId');
+      localStorage.removeItem('bhcg-leads-auth');
+      
+      // Clear all localStorage keys that start with 'sb-'
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-')) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      setUser(null);
+      console.log('Logout complete, redirecting to login');
+      router.push('/login');
     } catch (error) {
       console.error('Logout exception:', error);
-    } finally {
       setUser(null);
       sessionStorage.removeItem('userId');
       router.push('/login');

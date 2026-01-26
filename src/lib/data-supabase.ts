@@ -97,7 +97,23 @@ export const getLeads = async (): Promise<Lead[]> => {
     .select('*')
     .order('added_at', { ascending: false });
   
-  if (error || !data) return [];
+  if (error) {
+    console.error('Error fetching leads:', {
+      error,
+      errorMessage: error?.message,
+      errorDetails: error?.details,
+      errorHint: error?.hint,
+      errorCode: error?.code,
+    });
+    return [];
+  }
+  
+  if (!data) {
+    console.log('No leads data returned');
+    return [];
+  }
+  
+  console.log(`Successfully fetched ${data.length} leads from database`);
   
   return data.map(lead => ({
     id: lead.id,
