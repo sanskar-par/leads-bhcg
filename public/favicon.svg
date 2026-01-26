@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="48" fill="#14b8a6" stroke="#0d9488" stroke-width="2"/>
+  <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" stroke-width="2"/>
+  <circle cx="50" cy="50" r="32" fill="none" stroke="#fff" stroke-width="1"/>
+  
+  <!-- North pointer (darker teal) -->
+  <path d="M 50 18 L 55 50 L 50 45 L 45 50 Z" fill="#0d9488"/>
+  
+  <!-- South pointer (light) -->
+  <path d="M 50 82 L 45 50 L 50 55 L 55 50 Z" fill="#5eead4"/>
+  
+  <!-- East pointer (medium teal) -->
+  <path d="M 82 50 L 50 45 L 55 50 L 50 55 Z" fill="#2dd4bf"/>
+  
+  <!-- West pointer (medium teal) -->
+  <path d="M 18 50 L 50 55 L 45 50 L 50 45 Z" fill="#2dd4bf"/>
+  
+  <!-- Center circle -->
+  <circle cx="50" cy="50" r="6" fill="#fff"/>
+  <circle cx="50" cy="50" r="3" fill="#0d9488"/>
+  
+  <!-- Cardinal directions -->
+  <text x="50" y="12" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="10" font-weight="bold">N</text>
+</svg>
