@@ -1,3 +1,4 @@
+import { createBrowserClient } from '@supabase/ssr';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -7,18 +8,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing Supabase environment variables!');
 }
 
-// Create a browser-based client for auth operations
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    storageKey: 'bhcg-leads-auth',
-    debug: false,
-  },
-});
+// Create a browser-based client for auth operations using SSR package
+// This stores PKCE verifier in cookies so it's accessible to server-side callback
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
 
 // Create a separate client for data operations that bypasses auth state
 // This prevents auth conflicts between multiple browser sessions
