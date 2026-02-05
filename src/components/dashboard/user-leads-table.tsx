@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { getLeadsByUser } from '@/lib/data-supabase';
 import type { Lead } from '@/lib/types';
 import { useAuth } from '@/context/auth-context';
@@ -11,6 +12,8 @@ import { format } from 'date-fns';
 
 export default function UserLeadsTable() {
     const [userLeads, setUserLeads] = useState<Lead[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const rowsPerPage = 100;
     const { user } = useAuth();
 
     useEffect(() => {
@@ -18,16 +21,32 @@ export default function UserLeadsTable() {
             if (user) {
                 const leads = await getLeadsByUser(user.id);
                 setUserLeads(leads);
+                setCurrentPage(1);
             }
         };
         fetchUserLeads();
     }, [user]);
 
+    const totalPages = Math.ceil(userLeads.length / rowsPerPage);
+    const paginatedLeads = userLeads.slice(
+        (currentPage - 1) * rowsPerPage,
+        currentPage * rowsPerPage
+    );
+
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="font-headline text-2xl">My Added Leads</CardTitle>
-                <CardDescription>A list of leads you've recently added to the database.</CardDescription>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle className="font-headline text-2xl">My Added Leads</CardTitle>
+                        <CardDescription>A list of leads you've recently added to the database.</CardDescription>
+                    </div>
+                    {userLeads.length > rowsPerPage && (
+                        <div className="text-sm text-muted-foreground">
+                            Page {currentPage} of {totalPages}
+                        </div>
+                    )}
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="border rounded-md">
@@ -41,8 +60,8 @@ export default function UserLeadsTable() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {userLeads.length > 0 ? (
-                                userLeads.map((lead) => (
+                            {paginatedLeads.length > 0 ? (
+                                paginatedLeads.map((lead) => (
                                 <TableRow key={lead.id}>
                                     <TableCell>
                                         <div className="font-medium">{lead.name}</div>
@@ -63,6 +82,27 @@ export default function UserLeadsTable() {
                         </TableBody>
                     </Table>
                 </div>
+                {userLeads.length > rowsPerPage && (
+                    <div className="flex items-center justify-between mt-4">
+                        <Button
+                            variant="outline"
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                        >
+                            Previous
+                        </Button>
+                        <span className="text-sm text-muted-foreground">
+                            Page {currentPage} of {totalPages} • {userLeads.length} total leads
+                        </span>
+                        <Button
+                            variant="outline"
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages}
+                        >
+                            Next
+                        </Button>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

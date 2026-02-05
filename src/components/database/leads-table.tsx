@@ -20,6 +20,8 @@ export default function LeadsTable() {
     const [filter, setFilter] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'addedAt', direction: 'descending' });
     const [loading, setLoading] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
+    const rowsPerPage = 100;
 
     useEffect(() => {
         let mounted = true;
@@ -93,6 +95,17 @@ export default function LeadsTable() {
         );
     }, [sortedLeads, filter, users]);
 
+    const totalPages = Math.ceil(filteredLeads.length / rowsPerPage);
+    const paginatedLeads = useMemo(() => {
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        return filteredLeads.slice(startIndex, startIndex + rowsPerPage);
+    }, [filteredLeads, currentPage]);
+
+    // Reset to page 1 when filter changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filter]);
+
     const requestSort = (key: SortKey) => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -151,13 +164,16 @@ export default function LeadsTable() {
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="flex items-center py-4">
+                <div className="flex items-center justify-between py-4">
                     <Input
                         placeholder="Search leads..."
                         value={filter}
                         onChange={(event) => setFilter(event.target.value)}
                         className="max-w-sm"
                     />
+                    <div className="text-sm text-muted-foreground">
+                        Showing {paginatedLeads.length} of {filteredLeads.length} leads (Page {currentPage} of {totalPages})
+                    </div>
                 </div>
                 <div className="border rounded-md overflow-x-auto">
                     <Table>
@@ -202,8 +218,8 @@ export default function LeadsTable() {
                                         Loading leads database...
                                     </TableCell>
                                 </TableRow>
-                            ) : filteredLeads.length > 0 ? (
-                                filteredLeads.map((lead) => (
+                            ) : paginatedLeads.length > 0 ? (
+                                paginatedLeads.map((lead) => (
                                 <TableRow key={lead.id}>
                                     <TableCell className="font-medium">{lead.name}</TableCell>
                                     <TableCell>
@@ -244,6 +260,27 @@ export default function LeadsTable() {
                         </TableBody>
                     </Table>
                 </div>
+                {filteredLeads.length > rowsPerPage && (
+                    <div className="flex items-center justify-between mt-4">
+                        <Button
+                            variant="outline"
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                        >
+                            Previous
+                        </Button>
+                        <span className="text-sm text-muted-foreground">
+                            Page {currentPage} of {totalPages}
+                        </span>
+                        <Button
+                            variant="outline"
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages}
+                        >
+                            Next
+                        </Button>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

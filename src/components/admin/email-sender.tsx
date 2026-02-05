@@ -109,6 +109,8 @@ export default function AdminEmailSender() {
   });
   const [isSending, setIsSending] = useState(false);
   const [previewLead, setPreviewLead] = useState<Lead | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 100;
   const { toast } = useToast();
 
   useEffect(() => {
@@ -132,6 +134,17 @@ export default function AdminEmailSender() {
       lead.latestCompany.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesIndustry && matchesSearch;
   });
+
+  const totalPages = Math.ceil(filteredLeads.length / rowsPerPage);
+  const paginatedLeads = filteredLeads.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatus, filterIndustry, searchQuery]);
 
   // Get unique industries for filter
   const uniqueIndustries = Array.from(new Set(leads.map(lead => lead.industry))).sort();
@@ -345,16 +358,21 @@ export default function AdminEmailSender() {
                 </Select>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Checkbox 
-                  checked={selectedLeads.size === filteredLeads.length && filteredLeads.length > 0}
-                  onCheckedChange={selectAll}
-                />
-                <Label>Select All ({filteredLeads.length} leads)</Label>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    checked={selectedLeads.size === filteredLeads.length && filteredLeads.length > 0}
+                    onCheckedChange={selectAll}
+                  />
+                  <Label>Select All ({filteredLeads.length} leads)</Label>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages} • {selectedLeads.size} selected
+                </div>
               </div>
 
               <div className="border rounded-md max-h-[400px] overflow-y-auto">
-                {filteredLeads.map((lead) => (
+                {paginatedLeads.map((lead) => (
                   <div key={lead.id} className="flex items-center gap-4 p-3 hover:bg-accent border-b last:border-b-0">
                     <Checkbox
                       checked={selectedLeads.has(lead.id)}
@@ -367,12 +385,33 @@ export default function AdminEmailSender() {
                     {getStatusBadge(lead.status)}
                   </div>
                 ))}
-                {filteredLeads.length === 0 && (
+                {paginatedLeads.length === 0 && (
                   <div className="p-8 text-center text-muted-foreground">
                     No leads found matching your filters
                   </div>
                 )}
               </div>
+              {filteredLeads.length > rowsPerPage && (
+                <div className="flex items-center justify-between mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

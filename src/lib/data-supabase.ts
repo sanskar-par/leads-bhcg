@@ -95,7 +95,8 @@ export const getLeads = async (): Promise<Lead[]> => {
   const { data, error } = await dataClient
     .from('leads')
     .select('*')
-    .order('added_at', { ascending: false });
+    .order('added_at', { ascending: false })
+    .limit(50000);
   
   if (error || !data) return [];
   
@@ -123,7 +124,8 @@ export const getLeadsByUser = async (userId: string): Promise<Lead[]> => {
     .from('leads')
     .select('*')
     .eq('added_by', userId)
-    .order('added_at', { ascending: false });
+    .order('added_at', { ascending: false })
+    .limit(50000);
   
   if (error || !data) return [];
   
@@ -208,7 +210,8 @@ export const getLeaderboard = async (): Promise<LeaderboardEntry[]> => {
   // Get lead counts per user
   const { data: leadCounts, error: countsError } = await dataClient
     .from('leads')
-    .select('added_by');
+    .select('added_by')
+    .limit(50000);
   
   if (countsError || !leadCounts) return [];
   
